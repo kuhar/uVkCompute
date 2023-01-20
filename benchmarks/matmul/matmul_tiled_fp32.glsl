@@ -39,30 +39,6 @@ void main()
         }
     }
 
-    for (uint k = 0; k < K; k+=TILE_K) {
-        [[unroll]] for (uint j = 0; j < C_COLS; ++j) {
-          [[unroll]] for (uint i = 0; i < TILE_K; ++i) {
-            uint gj = gID.x * (TILE_N / 4) + laneId.x +j*WG_X;
-            uint gk = k+i;
-            B[i][j] = inputB.x[coordToOffset(gk, gj, strideB/4)];
-          }
-        }
-
-        [[unroll]] for (uint i = 0; i < C_ROWS; ++i) {
-          uint gi = gID.y * TILE_M + laneId.y + i*WG_Y;
-          uint gk = k/4;
-          [[unroll]] for (uint kk = 0; kk < TILE_K/4; kk++) {
-            vec4 A = inputA.x[coordToOffset(gi, gk+kk, strideA/4)];
-            [[unroll]] for (uint j = 0; j < C_COLS; ++j) {
-              C[i][j] += vec4(A.x, A.x, A.x, A.x)*B[0+4*kk][j];
-              C[i][j] += vec4(A.y, A.y, A.y, A.y)*B[1+4*kk][j];
-              C[i][j] += vec4(A.z, A.z, A.z, A.z)*B[2+4*kk][j];
-              C[i][j] += vec4(A.w, A.w, A.w, A.w)*B[3+4*kk][j];
-            }
-          }
-        }
-    }
-
     [[unroll]] for (uint i = 0; i < C_ROWS; ++i) {
         [[unroll]] for (uint j = 0; j < C_COLS; ++j) {
             uint gi = gID.y * TILE_M + laneId.y + i*WG_Y;
