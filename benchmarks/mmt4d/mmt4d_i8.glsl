@@ -21,7 +21,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int32 : require
 
-layout(binding = 0) buffer InputA { i8vec4 x[]; } inputA;
+layout(binding = 0) buffer InputA { int8_t x[]; } inputA;
 layout(binding = 1) buffer InputB { int8_t x[]; } inputB;
 layout(binding = 2) buffer Output { int32_t x[]; } outputO;
 
@@ -31,20 +31,27 @@ layout(constant_id = 0) const uint M = 1;
 layout(constant_id = 1) const uint N = 1;
 layout(constant_id = 2) const uint K = 1;
 
-const uint strideA = K;
-const uint strideB = N;
-const uint strideC = N;
+const uint strideA = K; // Stride of the `inputA` matrix.
+const uint strideB = K; // Stride of the `inputB` matrix.
+const uint strideC = N; // Stride of the `outputO` matrix.
 
-const uint C_ROWS = TILE_M / WG_Y;
-const uint C_COLS = TILE_N / WG_X;
+// Each workgroup processes an output tile of size [M0 x N0], therefore
+// each thread processes a [M0 / WG_Y, N0 / WG_X] subview.
+const uint C_ROWS = M0 / WG_Y;
+const uint C_COLS = N0 / WG_X;
 
+/// Returns the index of `X[i, j]`, where `X` is a 2D matrix of stride |stride|.
 uint coordToOffset(uint i, uint j, uint stride) { return (stride * i + j); }
 
 void main() {
   uvec2 gID = gl_WorkGroupID.xy;
   uvec2 laneId = gl_LocalInvocationID.xy;
+
+  // The start offsets of the tile processed by this thread in this workgroup.
+  uint x_offset = gID.x * N0 + laneId.x;
+  uint y_offset = gID.y * M0 + laneId.y;
+
   int32_t C[C_ROWS][C_COLS]; // Local data for the output.
-  i8vec4 B[TILE_K / 4][C_COLS]; // Prefetched data for RHS.
 
   // Initialize result to zero.
   [[unroll]] for (uint i = 0; i < C_ROWS; ++i) {
@@ -53,42 +60,28 @@ void main() {
     }
   }
 
-  // TODO(kuhar@): Further optimize this.
-  for (uint k_pos = 0; k_pos < K; k_pos += TILE_K) {
-    // Prefetch RHS.
-    [[unroll]] for (uint k = 0; k < TILE_K; k += 4) {
-      uint gk = k + k_pos;
-      [[unroll]] for (uint j = 0; j < C_COLS; j += 4) {
-        uint x = gID.x * TILE_N + j * WG_X + laneId.x;
-        [[unroll]] for (uint jj = 0; jj < 4; ++jj) {
-          B[k / 4][j + jj].x = inputB.x[coordToOffset(gk + 0, x + jj * WG_X, strideB)];
-          B[k / 4][j + jj].y = inputB.x[coordToOffset(gk + 1, x + jj * WG_X, strideB)];
-          B[k / 4][j + jj].z = inputB.x[coordToOffset(gk + 2, x + jj * WG_X, strideB)];
-          B[k / 4][j + jj].w = inputB.x[coordToOffset(gk + 3, x + jj * WG_X, strideB)];
-        }
-      }
-    }
+  for (uint i = 0; i < C_ROWS; ++i) {
+    for (uint j = 0; j < C_COLS; ++j) {
+      uint y = y_offset + i * WG_Y;
+      uint x = x_offset + j * WG_X;
 
-    [[unroll]] for (uint i = 0; i < C_ROWS; ++i) {
-      [[unroll]] for (uint k = 0; k < TILE_K; k += 4) {
-        uint y = gID.y * TILE_M + i * WG_Y + laneId.y;
-        uint gk = k + k_pos;
-        i16vec4 lhs = inputA.x[coordToOffset(y, gk, strideA) / 4];
-        [[unroll]] for (uint j = 0; j < C_COLS; ++j) {
-          i16vec4 rhs = B[k / 4][j];
-          i16vec4 mul = lhs * rhs;
-          int32_t acc = int32_t(mul.x) + int32_t(mul.y) + int32_t(mul.z) + int32_t(mul.w);
-          C[i][j] += acc;
-        }
+      int32_t acc = 0; // 1 + inputA.x[y] + inputB.x[x];
+      // Calculate the inner product `C[i, j] := sum(A[i, ..] * B[j, ..])`.
+      for (uint k = 0; k < K; ++k) {
+        int16_t lhs = inputA.x[coordToOffset(y, k, strideA)];
+        int16_t rhs = inputB.x[coordToOffset(x, k, strideB)];
+        acc += int32_t(lhs * rhs);
       }
+      C[i][j] = acc;
     }
   }
 
+  // Store the accumulated results in `outputO`.
   [[unroll]] for (uint i = 0; i < C_ROWS; ++i) {
-    uint gi = gID.y * TILE_M + laneId.y + i * WG_Y;
+    uint y = gID.y * M0 + laneId.y + i * WG_Y;
     [[unroll]] for (uint j = 0; j < C_COLS; ++j) {
-      uint gj = gID.x * TILE_N + laneId.x + j * WG_X;
-      outputO.x[coordToOffset(gi, gj, strideC)] = C[i][j];
+      uint x = gID.x * N0 + laneId.x + j * WG_X;
+      outputO.x[coordToOffset(y, x, strideC)] = C[i][j];
     }
   }
 }
