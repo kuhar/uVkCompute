@@ -55,12 +55,13 @@ struct ShaderCode {
         K0, X, Y, DataType::i8, DataType::i32                                \
   }
 
-#define WORKGROUP_TILE_N_I8(X, Y, N0)                        \
-  SHADER_I8(2, N0, 4, X, Y), SHADER_I8(4, N0, 4, X, Y),      \
-      SHADER_I8(8, N0, 4, X, Y), SHADER_I8(16, N0, 4, X, Y), \
-      SHADER_I8(32, N0, 4, X, Y), SHADER_I8(2, N0, 8, X, Y), \
-      SHADER_I8(4, N0, 8, X, Y), SHADER_I8(8, N0, 8, X, Y),  \
-      SHADER_I8(16, N0, 8, X, Y), SHADER_I8(32, N0, 8, X, Y)
+#define WORKGROUP_TILE_N_I8(X, Y, N0)                         \
+  SHADER_I8(4, N0, 4, X, Y), SHADER_I8(8, N0, 4, X, Y),       \
+      SHADER_I8(16, N0, 4, X, Y), SHADER_I8(32, N0, 4, X, Y), \
+      SHADER_I8(4, N0, 8, X, Y), SHADER_I8(8, N0, 8, X, Y),   \
+      SHADER_I8(16, N0, 8, X, Y), SHADER_I8(32, N0, 8, X, Y), \
+      SHADER_I8(4, N0, 16, X, Y), SHADER_I8(8, N0, 16, X, Y), \
+      SHADER_I8(16, N0, 16, X, Y), SHADER_I8(32, N0, 16, X, Y)
 
 #if defined(UVKC_ADRENO)
 
@@ -81,7 +82,7 @@ namespace mmt4d_i8 {
 
 static ShaderCode kShaderCodeCases[] = {
     WORKGROUP_TILE_N_I8(16, 1, 64),
-    // WORKGROUP_TILE_N_I8(16, 1, 128),
+    WORKGROUP_TILE_N_I8(16, 1, 128),
 };
 
 #else

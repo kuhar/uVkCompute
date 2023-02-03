@@ -22,9 +22,9 @@ uvkc_glsl_shader_permutation(
   SRC
     "mmt4d_i8.glsl"
   PERMUTATION
-    "M0=[2|4|8|16|32]"
+    "M0=[4|8|16|32]"
     "N0=[128|256]"
-    "K0=[4|8]"
+    "K0=[4|8|16]"
     "WG_X=32"
     "WG_Y=2"
 )
@@ -53,9 +53,9 @@ uvkc_glsl_shader_permutation(
   SRC
     "mmt4d_i8.glsl"
   PERMUTATION
-    "M0=[2|4|8|16|32]"
+    "M0=[4|8|16|32]"
     "N0=[64|128]"
-    "K0=[4|8]"
+    "K0=[4|8|16]"
     "WG_X=16"
     "WG_Y=1"
 )
